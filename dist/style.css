@@ -76,7 +76,7 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
 #folderActionsName,#folderName{display:block;width:100%;height:48px;border:1px solid #e4e4e9;border-radius:12px;padding:0 14px;margin:6px 0 14px;background:#fff;color:#202022}
 #folderActionsForm .primary,#folderForm .primary{display:block;width:100%}
 .folder-danger .danger{display:block;width:100%}
-@media(hover:none){#record{display:none}#dropzone small{font-size:0}#dropzone small::after{content:"PDF, аудио, видео";font-size:11px}}
+@media(hover:none){#dropzone small{font-size:0}#dropzone small::after{content:"PDF, аудио, видео";font-size:11px}}
 
 .menu-btn{display:none}
 @media(max-width:760px){
@@ -110,3 +110,16 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
 .ghost:hover{background:#f4f4f7}.ghost[hidden]{display:none}
 @media(max-width:760px){.ghost{min-height:44px}}
 .material.has-cover .material-more{background:#ffffffe6;color:#202022;box-shadow:0 1px 5px #0003}
+
+/* Запись лекции */
+.record-panel .record-info{flex:1;min-width:0}
+.record-panel strong{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.record-panel p{font-size:11px}
+.record-dot{width:12px;height:12px;animation:rec-pulse 1.2s ease-in-out infinite}
+.record-panel.paused .record-dot{animation:none;background:#b8b8c0}
+@keyframes rec-pulse{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.record-dot{animation:none}}
+.rec-stop{background:#202022;color:#fff;border-radius:20px;padding:9px 15px;font-size:13px;font-weight:500}
+#dismissRecord{font-size:20px;color:#818189;padding:0 4px}
+.attachment.has-audio{flex-wrap:wrap}.attachment audio{flex:0 0 100%;width:100%;height:38px;margin-top:6px}
+@media(max-width:760px){.record-panel{flex-wrap:wrap}.record-panel .record-info{flex:1 1 60%}.rec-stop,.record-panel .ghost{min-height:44px}}
