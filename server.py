@@ -1,5 +1,6 @@
 """Локальный сервер жука: отдаёт dist/, хранит резервную копию данных, быстрые заметки и вложения."""
 import json, os, re, shutil, time, datetime, uuid
+from urllib.parse import unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -95,10 +96,12 @@ class H(SimpleHTTPRequestHandler):
         try:
             c = json.loads(raw); title = str(c.get('title') or '').strip()[:200]; url = str(c.get('url') or '')[:2000]; text = str(c.get('text') or '').strip()[:6000]
         except (ValueError, AttributeError): return self.send_error(400)
-        if not url.startswith(('http://', 'https://')): url = ''
+        if not url.startswith(('http://', 'https://', 'file://')): url = ''
+        page = str(c.get('page') or '').strip()[:20]
+        label = unquote(url.rsplit('/', 1)[-1]) if url.startswith('file://') else url
         clips = json.load(open(CLIPS, encoding='utf-8')) if os.path.exists(CLIPS) else []
-        clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text,
-                      'body': ('«' + text + '»\n\n' if text else '') + ('Источник: ' + url if url else ''), 'source': url, 'folder': 'inbox', 'kind': 'text',
+        clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page,
+                      'body': ('«' + text + '»' + (' (с. ' + page + ')' if page else '') + '\n\n' if text else '') + ('Источник: ' + label + (', с. ' + page if page and not text else '') if url else ''), 'source': url, 'folder': 'inbox', 'kind': 'text',
                       'clip': True, 'demo': False, 'attachments': [], 'date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
         atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode())
         self.send_response(204); self.end_headers()
