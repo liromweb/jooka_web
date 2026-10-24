@@ -104,6 +104,7 @@ class H(SimpleHTTPRequestHandler):
             if p == '/api/clips': return self.send_bytes(open(CLIPS, 'rb').read() if os.path.exists(CLIPS) else b'[]')
             if p == '/api/data':
                 return self.send_bytes(open(FILE, 'rb').read(), headers={'X-Rev': get_rev(), 'Cache-Control': 'no-store'}) if os.path.exists(FILE) else self.send_error(404)
+            if p == '/api/rev': return self.send_bytes(json.dumps({'rev': get_rev()}).encode(), headers={'Cache-Control': 'no-store'})
             if p == '/api/files': return self.send_bytes(json.dumps(os.listdir(FILES)).encode())
             if p.startswith('/api/file/') and ID.match(p[10:]):
                 fp = os.path.join(FILES, p[10:])

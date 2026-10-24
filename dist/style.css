@@ -92,3 +92,21 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
  .menu-item .folder-dot{flex:none}
 }
 #menuSheet{padding:0}#menuSheet .sheet{padding:22px 24px}
+
+/* Обложки */
+.cover.front.has-photo{background-size:cover;background-position:center;background-color:#d9d9de}
+.cover.front.has-photo .cover-caption{position:absolute;left:0;right:0;bottom:0;padding:22px 10px 10px;background:linear-gradient(transparent,#000000b3)}
+.material.has-cover{overflow:hidden}
+.material.has-cover .material-open{padding-top:0}
+.material-cover{display:block;width:calc(100% + 36px);height:132px;margin:0 -18px 14px;background:#ececf0 center/cover no-repeat}
+@media(max-width:760px){.material-cover{width:calc(100% + 26px);margin:0 -13px 12px;height:150px}}
+.folder-cover{border-top:1px solid #ededf0;margin-top:22px;padding-top:16px}
+.folder-cover-label{font-size:12px;color:#818189}
+.folder-cover-row{display:flex;align-items:center;gap:16px;margin-top:10px}
+.folder-cover-preview{flex:none;width:66px;height:88px;border-radius:9px;background:#ececf0 center/cover no-repeat;box-shadow:0 4px 10px #00000018}
+.folder-cover-preview.empty{border:1px dashed #cfcfd6;background:#f6f6f8;box-shadow:none}
+.folder-cover-actions{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.ghost{border:1px solid #e0e0e6;background:#fff;color:#202022;border-radius:20px;padding:9px 15px;font-size:13px}
+.ghost:hover{background:#f4f4f7}.ghost[hidden]{display:none}
+@media(max-width:760px){.ghost{min-height:44px}}
+.material.has-cover .material-more{background:#ffffffe6;color:#202022;box-shadow:0 1px 5px #0003}
