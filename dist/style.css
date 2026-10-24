@@ -123,3 +123,7 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
 #dismissRecord{font-size:20px;color:#818189;padding:0 4px}
 .attachment.has-audio{flex-wrap:wrap}.attachment audio{flex:0 0 100%;width:100%;height:38px;margin-top:6px}
 @media(max-width:760px){.record-panel{flex-wrap:wrap}.record-panel .record-info{flex:1 1 60%}.rec-stop,.record-panel .ghost{min-height:44px}}
+
+#jobBar{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:40;max-width:calc(100vw - 24px);padding:10px 18px;border-radius:24px;background:#242428;color:#fff;font-size:12px;box-shadow:0 8px 30px #0003;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#jobBar[hidden]{display:none}
+.attachment .ghost{padding:6px 12px;font-size:11px}

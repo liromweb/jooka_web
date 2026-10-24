@@ -1,5 +1,5 @@
 """Локальный сервер жука: отдаёт dist/, хранит резервную копию данных, быстрые заметки и вложения."""
-import json, os, re, shutil, subprocess, threading, time, datetime, uuid
+import json, os, re, shutil, subprocess, tempfile, threading, time, datetime, uuid
 from urllib.parse import unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -14,6 +14,12 @@ SNAP_EVERY = 600          # снимок перед записью не чаще
 KEEP_RECENT, KEEP_DAYS = 30, 30
 for d in (HIST, FILES): os.makedirs(d, exist_ok=True)
 ID = re.compile(r'^[A-Za-z0-9-]{8,64}$')
+TRANS = os.path.join(DATA, 'transcripts')
+MODEL = os.path.join(ROOT, 'models', 'ggml-large-v3-turbo-q5_0.bin')
+WHISPER = shutil.which('whisper-cli') or '/opt/homebrew/bin/whisper-cli'
+FFMPEG = shutil.which('ffmpeg') or '/opt/homebrew/bin/ffmpeg'
+os.makedirs(TRANS, exist_ok=True)
+JOBS, JOB_LOCK = {}, threading.Lock()      # id вложения -> {'status','progress','error'}
 REV = os.path.join(DATA, 'rev.txt')
 HOSTS = os.path.join(DATA, 'allowed_hosts.txt')   # по одному имени в строке, например: mac.tailnet-name.ts.net
 
@@ -85,6 +91,38 @@ def schedule_git_sync(delay=60):
     if git_timer: git_timer.cancel()
     git_timer = threading.Timer(delay, git_sync); git_timer.daemon = True; git_timer.start()
 
+def run_transcription(fid, lang):
+    job = JOBS[fid]
+    with JOB_LOCK:                                   # по одной за раз: нагрузка на процессор большая
+        wav = tempfile.mktemp(suffix='.wav'); base = tempfile.mktemp(prefix='whisper-')
+        try:
+            job.update(status='running', progress=0)
+            r = subprocess.run([FFMPEG, '-loglevel', 'error', '-y', '-i', os.path.join(FILES, fid), '-vn', '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', wav], capture_output=True, text=True)
+            if r.returncode: raise RuntimeError('Не удалось прочитать аудио: ' + r.stderr.strip()[-200:])
+            p = subprocess.Popen([WHISPER, '-m', MODEL, '-f', wav, '-l', lang, '-pp', '-oj', '-of', base, '-sns'], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, bufsize=1)
+            for line in p.stderr:
+                m = re.search(r'progress\s*=\s*(\d+)%', line)
+                if m: job['progress'] = int(m.group(1))
+            if p.wait(): raise RuntimeError('whisper завершился с ошибкой')
+            j = json.load(open(base + '.json', encoding='utf-8'))
+            segs = [{'start': round(x['offsets']['from'] / 1000, 1), 'end': round(x['offsets']['to'] / 1000, 1), 'text': x['text'].strip()} for x in j.get('transcription', []) if x['text'].strip()]
+            out = {'id': fid, 'language': j.get('result', {}).get('language', ''), 'segments': segs, 'text': ' '.join(x['text'] for x in segs), 'created': datetime.datetime.now().isoformat(timespec='seconds')}
+            atomic_write(os.path.join(TRANS, fid + '.json'), json.dumps(out, ensure_ascii=False).encode())
+            job.update(status='done', progress=100); schedule_git_sync()
+        except Exception as e:
+            job.update(status='error', error=str(e)[:300])
+        finally:
+            for f in (wav, base + '.json'):
+                try: os.remove(f)
+                except OSError: pass
+
+def transcript_list():
+    done = {f[:-5] for f in os.listdir(TRANS) if f.endswith('.json')}
+    out = {fid: {'status': 'done', 'progress': 100} for fid in done}
+    for fid, j in JOBS.items():
+        if j['status'] != 'done' or fid not in done: out[fid] = dict(j)
+    return out
+
 class H(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=os.path.join(ROOT, 'dist'), **k)
     def log_message(self, *a): pass
@@ -104,6 +142,10 @@ class H(SimpleHTTPRequestHandler):
             if p == '/api/clips': return self.send_bytes(open(CLIPS, 'rb').read() if os.path.exists(CLIPS) else b'[]')
             if p == '/api/data':
                 return self.send_bytes(open(FILE, 'rb').read(), headers={'X-Rev': get_rev(), 'Cache-Control': 'no-store'}) if os.path.exists(FILE) else self.send_error(404)
+            if p == '/api/transcripts': return self.send_bytes(json.dumps(transcript_list()).encode(), headers={'Cache-Control': 'no-store'})
+            if p.startswith('/api/transcript/') and ID.match(p[16:]):
+                fp = os.path.join(TRANS, p[16:] + '.json')
+                return self.send_bytes(open(fp, 'rb').read()) if os.path.exists(fp) else self.send_error(404)
             if p == '/api/rev': return self.send_bytes(json.dumps({'rev': get_rev()}).encode(), headers={'Cache-Control': 'no-store'})
             if p == '/api/files': return self.send_bytes(json.dumps(os.listdir(FILES)).encode())
             if p.startswith('/api/file/') and ID.match(p[10:]):
@@ -121,6 +163,20 @@ class H(SimpleHTTPRequestHandler):
         self.send_response(204); self.end_headers()
 
     def do_POST(self):
+        if self.path == '/api/transcribe' and self.ok_host() and self.headers.get('Content-Type') == 'application/json':
+            try: req = json.loads(self.rfile.read(min(int(self.headers.get('Content-Length', 0)), 2000)))
+            except ValueError: return self.send_error(400)
+            fid, lang, force = str(req.get('id', '')), str(req.get('lang') or 'auto'), bool(req.get('force'))
+            if not ID.match(fid) or not os.path.exists(os.path.join(FILES, fid)): return self.send_bytes(b'{"error":"file-missing"}', code=404)
+            if not os.path.exists(MODEL) or not os.path.exists(WHISPER) or not os.path.exists(FFMPEG): return self.send_bytes(b'{"error":"tools-missing"}', code=500)
+            if lang not in ('auto', 'en', 'ru', 'uk', 'fr', 'de', 'es', 'it'): lang = 'auto'
+            tp = os.path.join(TRANS, fid + '.json')
+            if JOBS.get(fid, {}).get('status') in ('queued', 'running'): return self.send_bytes(json.dumps(JOBS[fid]).encode(), code=202)
+            if os.path.exists(tp) and not force: return self.send_bytes(b'{"status":"done"}')
+            if os.path.exists(tp): os.remove(tp)
+            JOBS[fid] = {'status': 'queued', 'progress': 0}
+            threading.Thread(target=run_transcription, args=(fid, lang), daemon=True).start()
+            return self.send_bytes(json.dumps(JOBS[fid]).encode(), code=202)
         if self.path not in ('/api/data', '/api/clip') or not self.ok_host() or self.headers.get('Content-Type') != 'application/json': return self.send_error(403)
         n = int(self.headers.get('Content-Length', 0))
         if n > 50_000_000 or (self.path == '/api/clip' and n > 100_000): return self.send_error(413)
