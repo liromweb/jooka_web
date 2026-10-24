@@ -14,3 +14,7 @@
 #cardMenu .danger-item{color:#b3261e}
 
 img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{height:32px}}
+
+@font-face{font-family:'Unbounded';font-weight:900;font-style:normal;font-display:swap;src:url(assets/fonts/unbounded-900.woff2) format('woff2')}
+.logo .wordmark{font-family:'Unbounded',-apple-system,sans-serif;font-weight:900;font-size:25px;letter-spacing:-1px;display:inline-block;transform:skewX(-10deg);line-height:1}
+.logo{gap:12px}
