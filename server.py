@@ -150,7 +150,7 @@ class H(SimpleHTTPRequestHandler):
         label = unquote(url.rsplit('/', 1)[-1]) if url.startswith('file://') else url
         clips = json.load(open(CLIPS, encoding='utf-8')) if os.path.exists(CLIPS) else []
         clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page,
-                      'body': ('«' + text + '»' + (' (с. ' + page + ')' if page else '') + '\n\n' if text else '') + ('Источник: ' + label + (', с. ' + page if page and not text else '') if url else ''), 'source': url, 'folder': 'inbox', 'kind': 'text',
+                      'body': ('«' + text + '»' + (' (с. ' + page + ')' if page else '') + '\n\n' if text else '') + ('Источник: ' + label + (', с. ' + page if page and not text else '') if url else ''), 'source': url, 'folder': str(c.get('folder') or 'inbox')[:80], 'section': (str(c.get('section'))[:20] if c.get('section') else None), 'kind': 'text',
                       'clip': True, 'demo': False, 'attachments': [], 'date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
         atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode()); schedule_git_sync()
         self.send_response(204); self.end_headers()

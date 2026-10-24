@@ -2,7 +2,8 @@
 
 Нужно один раз:  python3 -m venv .venv && .venv/bin/pip install pymupdf pillow   (и tesseract: brew install tesseract)
 Читаем:  .venv/bin/python tools/pdf_highlights.py extract "/путь/файл.pdf"      -> JSON [{page,text}], текст из OCR, нужна вычитка
-Кладём:  .venv/bin/python tools/pdf_highlights.py post "/путь/файл.pdf" "Название заметки" вычитанный.json [смещение_страниц]
+Кладём:  .venv/bin/python tools/pdf_highlights.py post "/путь/файл.pdf" "Название заметки" вычитанный.json [смещение_страниц] [папка] [раздел]
+         папка, например unit-6; раздел: readings (Ридинги) или lectures (Мои лекции); по умолчанию заметка идёт во Входящие
 Повторное добавление безопасно: жук не дублирует цитаты, которые уже есть в заметке.
 """
 import fitz, json, os, subprocess, sys, tempfile, urllib.request
@@ -26,14 +27,14 @@ def extract(pdf):
             out.append({'page': pg.number + 1, 'text': ' '.join(t for _, t in sorted(lines))})
     return out
 
-def post(pdf, title, items, offset=0):
+def post(pdf, title, items, offset=0, folder='', section=''):
     url = 'file://' + quote(os.path.abspath(pdf))
     for it in items:
-        body = json.dumps({'text': it['text'], 'url': url, 'title': title, 'page': str(int(it['page']) + offset)}).encode()
+        body = json.dumps({'text': it['text'], 'url': url, 'title': title, 'page': str(int(it['page']) + offset), 'folder': folder, 'section': section}).encode()
         urllib.request.urlopen(urllib.request.Request('http://localhost:4318/api/clip', data=body, headers={'Content-Type': 'application/json'}))
     print('добавлено', len(items))
 
 if __name__ == '__main__':
     cmd = sys.argv[1]
     if cmd == 'extract': print(json.dumps(extract(sys.argv[2]), ensure_ascii=False, indent=1))
-    elif cmd == 'post': post(sys.argv[2], sys.argv[3], json.load(open(sys.argv[4], encoding='utf-8')), int(sys.argv[5]) if len(sys.argv) > 5 else 0)
+    elif cmd == 'post': post(sys.argv[2], sys.argv[3], json.load(open(sys.argv[4], encoding='utf-8')), int(sys.argv[5]) if len(sys.argv) > 5 else 0, sys.argv[6] if len(sys.argv) > 6 else '', sys.argv[7] if len(sys.argv) > 7 else '')
