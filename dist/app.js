@@ -212,3 +212,18 @@ function deleteMaterial(m){const n=m.attachments?.length||0;if(!confirm('Уда�
 
 // Мобильная навигация: центральная кнопка «＋» и быстрый путь к новой коллекции.
 $('#tabAdd').onclick=()=>$('#add').click();$('#folderAddM').onclick=()=>$('#folderAdd').click();
+
+// Мобильное меню: коллекции и всё, что на компьютере живёт в боковой панели.
+function openMainMenu(){const body=$('#menuBody');body.replaceChildren();
+ const item=(label,fn,opts={})=>{const b=el(opts.href?'a':'button','menu-item'+(opts.active?' current':''));if(opts.href){b.href=opts.href;b.target='_blank';b.rel='noopener'}if(opts.dot){const d=el('span','folder-dot');d.style.background=opts.dot;b.append(d)}b.append(el('span','menu-label',label));if(opts.count!==undefined)b.append(el('small','',String(opts.count)));if(fn)b.onclick=()=>{$('#menuSheet').close();fn()};return b};
+ body.append(el('p','menu-group','Коллекции'));
+ body.append(item('Входящие',()=>{view='inbox';render()},{dot:'#d5d5db',count:data.materials.filter(m=>m.folder==='inbox').length,active:view==='inbox'}));
+ for(const f of data.folders.filter(f=>!f.parent))body.append(item(f.name,()=>navigate(f.id),{dot:f.color,count:f.type==='year'?data.folders.filter(c=>c.parent===f.id).length+' юн.':data.materials.filter(m=>m.folder===f.id).length,active:view===f.id}));
+ body.append(item('＋ Новая коллекция',()=>$('#folderAdd').click()));
+ body.append(el('p','menu-group','Ещё'));
+ body.append(item('↓ Экспорт заметок',()=>$('#exportNotes').click()));
+ body.append(item('✂ Быстрая заметка с iPhone и Mac',null,{href:'bookmarklet.html'}));
+ body.append(item('О приложении',()=>notify('жooka: личное пространство для лекций, чтения и мыслей. Данные хранятся на твоём Mac.')));
+ $('#menuSheet').showModal()}
+$('#menuBtn').onclick=openMainMenu;$('#closeMenuSheet').onclick=()=>$('#menuSheet').close();
+$('#menuSheet').addEventListener('click',e=>{if(e.target===$('#menuSheet'))$('#menuSheet').close()});

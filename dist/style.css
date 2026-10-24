@@ -77,3 +77,18 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
 #folderActionsForm .primary,#folderForm .primary{display:block;width:100%}
 .folder-danger .danger{display:block;width:100%}
 @media(hover:none){#record{display:none}#dropzone small{font-size:0}#dropzone small::after{content:"PDF, аудио, видео";font-size:11px}}
+
+.menu-btn{display:none}
+@media(max-width:760px){
+ .menu-btn{position:fixed;top:5px;right:8px;z-index:16;width:44px;height:44px;border:0;border-radius:50%;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+ .menu-btn i{display:block;width:20px;height:2px;border-radius:2px;background:#202022}
+ .menu-btn:active{background:#f0f0f3}
+ #menuSheet .sheet{padding:20px 14px calc(18px + env(safe-area-inset-bottom))}
+ #menuSheet .dialog-head{padding:0 6px;margin-bottom:6px}
+ .menu-group{margin:14px 6px 4px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#9a9aa3}
+ .menu-item{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0 10px;border:0;border-radius:12px;background:none;color:#202022;font-size:16px;text-align:left;text-decoration:none}
+ .menu-item:active{background:#f0f0f3}.menu-item.current{background:#f1f1f4;font-weight:600}
+ .menu-item small{margin-left:auto;font-size:12px;color:#9a9aa3}
+ .menu-item .folder-dot{flex:none}
+}
+#menuSheet{padding:0}#menuSheet .sheet{padding:22px 24px}
