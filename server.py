@@ -1,5 +1,5 @@
 """Локальный сервер жука: отдаёт dist/, хранит резервную копию данных, быстрые заметки и вложения."""
-import json, os, re, shutil, time, datetime, uuid
+import json, os, re, shutil, subprocess, threading, time, datetime, uuid
 from urllib.parse import unquote
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -47,6 +47,30 @@ def count_file(path):
     try: return count_materials(open(path, 'rb').read())
     except OSError: return -1
 
+# История версий: data/ это отдельный git-репозиторий. Если задан remote origin, копия уходит и на GitHub (приватный репозиторий).
+GIT_LOCK, git_timer = threading.Lock(), None
+def git(*args, timeout=90):
+    return subprocess.run(['git', *args], cwd=DATA, capture_output=True, text=True, timeout=timeout)
+
+def git_sync():
+    with GIT_LOCK:
+        try:
+            if not os.path.isdir(os.path.join(DATA, '.git')):
+                git('init', '-q', '-b', 'main'); git('config', 'user.name', 'jooka backup'); git('config', 'user.email', 'jooka@localhost')
+                open(os.path.join(DATA, '.gitignore'), 'w').write('files/\nhistory/\n*.tmp\nserver.log\n')
+            git('add', '-A')
+            if git('diff', '--cached', '--quiet').returncode != 0:
+                git('commit', '-q', '-m', 'auto ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))
+            if git('remote').stdout.strip() and git('rev-list', '--count', '@{u}..HEAD').stdout.strip() != '0':
+                git('push', '-q', '-u', 'origin', 'main') if git('rev-parse', '--abbrev-ref', '@{u}').returncode else git('push', '-q')
+        except Exception as e:
+            print('git sync:', e, flush=True)
+
+def schedule_git_sync(delay=60):
+    global git_timer
+    if git_timer: git_timer.cancel()
+    git_timer = threading.Timer(delay, git_sync); git_timer.daemon = True; git_timer.start()
+
 class H(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=os.path.join(ROOT, 'dist'), **k)
     def log_message(self, *a): pass
@@ -89,7 +113,7 @@ class H(SimpleHTTPRequestHandler):
             atomic_write(os.path.join(HIST, 'rejected-' + datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S') + '.json'), raw)
             return self.send_bytes(json.dumps({'old': old, 'new': new}).encode(), code=409)
         snapshot_before_write()
-        atomic_write(FILE, raw)
+        atomic_write(FILE, raw); schedule_git_sync()
         self.send_response(204); self.end_headers()
 
     def save_clip(self, raw):
@@ -103,8 +127,9 @@ class H(SimpleHTTPRequestHandler):
         clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page,
                       'body': ('«' + text + '»' + (' (с. ' + page + ')' if page else '') + '\n\n' if text else '') + ('Источник: ' + label + (', с. ' + page if page and not text else '') if url else ''), 'source': url, 'folder': 'inbox', 'kind': 'text',
                       'clip': True, 'demo': False, 'attachments': [], 'date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
-        atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode())
+        atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode()); schedule_git_sync()
         self.send_response(204); self.end_headers()
 
 if __name__ == '__main__':
+    schedule_git_sync(5)
     ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()
