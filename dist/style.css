@@ -22,3 +22,58 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
 @media(max-width:1050px) and (min-width:761px){img.bug{height:30px}.logo .wordmark{font-size:17px;letter-spacing:-.6px}.logo{gap:8px;padding-left:4px}}
 
 @media(max-width:760px){a.export-notes[href="bookmarklet.html"]{display:inline-block;margin-bottom:4px}button.export-notes{display:none}input,textarea,select{font-size:16px}body{padding-bottom:env(safe-area-inset-bottom)}}
+
+/* ───────── Мобильная версия: навигация большим пальцем ───────── */
+.tab-add,.folder-add-m{display:none}
+@media(max-width:760px){
+ html{-webkit-text-size-adjust:100%}*{-webkit-tap-highlight-color:transparent}
+ body{display:flex;flex-direction:column;min-height:100dvh;overscroll-behavior-y:none}
+ .rail{display:contents}
+ .rail-label,#folderNav,button.export-notes,.rail-bottom,.domain{display:none!important}
+ .segments{display:none!important}
+ /* верхняя полоска: только знак и имя */
+ .logo{order:0;position:sticky;top:0;z-index:15;height:54px;padding:0 16px;gap:9px;font-size:inherit;background:#ffffffe6;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-bottom:1px solid #efeff2}
+ img.bug{height:26px}.logo .wordmark{font-size:16px}
+ /* нижняя панель: Библиотека, ＋, Входящие */
+ .rail nav{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:1fr 70px 1fr;align-items:end;height:calc(62px + env(safe-area-inset-bottom));padding:0 10px env(safe-area-inset-bottom);background:#ffffffeb;-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border-top:1px solid #ececf0}
+ .nav{position:relative;flex-direction:column;justify-content:center;gap:3px;height:58px;padding:0;background:none;border-radius:0;font-size:20px;line-height:1;color:#9a9aa3;width:100%}
+ .nav span{font-size:11px;font-weight:550;letter-spacing:.1px}
+ .nav.active{background:none;color:#202022}
+ .nav small{position:absolute;top:6px;left:calc(50% + 8px);margin:0;min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:#202022;color:#fff;font-size:10px;line-height:17px;text-align:center}
+ .nav small:empty{display:none}
+ .tab-add{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 9px;border-radius:50%;background:#202022;color:#fff;font-size:28px;font-weight:300;box-shadow:0 6px 18px #20202240}
+ .tab-add:active{transform:scale(.94)}
+ /* содержимое */
+ main{order:1;flex:1;padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+ .topbar{height:46px;padding:0 16px;border:0;background:#fff}
+ body[data-view=home] .topbar,body[data-view=inbox] .topbar{display:none}
+ #add,#help{display:none}
+ #breadcrumb{font-size:13px}#breadcrumb button{font-size:13px;color:#5c5c66;min-height:44px;padding:0 4px 0 0}
+ .content{padding:0 16px}
+ .heading{padding:14px 0 10px}.heading h1{font-size:30px;letter-spacing:-.8px}
+ .heading-more{width:44px;height:44px}
+ .controls{padding:6px 0 4px}
+ .search{height:46px}.search input{height:44px}
+ .folder-add-m{display:block;width:100%;margin:10px 0 0;padding:0;min-height:44px;text-align:left;font-size:14px;font-weight:550;color:#5c5c66}
+ body[data-view=inbox] .folder-add-m,body[data-view=folder] .folder-add-m{display:none}
+ .collection-grid{gap:18px 14px;padding:8px 0 22px}
+ .stack{height:150px}.cover{width:88px;height:118px}
+ .collection-wrap .more{opacity:1;top:2px;right:2px;width:36px;height:36px}
+ .material-grid{grid-template-columns:1fr;gap:10px}
+ .material-more{width:44px;height:44px;right:2px;top:2px;font-size:24px}
+ .section-header{padding-top:6px}
+ /* меню карточки и всплывающие окна */
+ #cardMenu button{min-height:48px;font-size:15px}
+ #toast{bottom:calc(78px + env(safe-area-inset-bottom));max-width:calc(100vw - 32px)}
+ dialog{width:100%;max-width:none;margin:auto 0 0;max-height:calc(100dvh - 18px);overflow:auto;border-radius:22px 22px 0 0}
+ dialog form{padding:20px 18px calc(22px + env(safe-area-inset-bottom))}
+ dialog .primary,dialog .danger{min-height:48px}
+ .dialog-head .icon{width:44px;height:44px;margin:-10px -10px -10px 0}
+ a.export-notes{order:2;display:block;margin:0;padding:0 16px calc(96px + env(safe-area-inset-bottom));font-size:12px;color:#9a9aa3;text-align:center;background:#fff}
+ main{padding-bottom:18px}
+}
+@media(hover:none){.collection-wrap .more{opacity:1}}
+#folderActionsName,#folderName{display:block;width:100%;height:48px;border:1px solid #e4e4e9;border-radius:12px;padding:0 14px;margin:6px 0 14px;background:#fff;color:#202022}
+#folderActionsForm .primary,#folderForm .primary{display:block;width:100%}
+.folder-danger .danger{display:block;width:100%}
+@media(hover:none){#record{display:none}#dropzone small{font-size:0}#dropzone small::after{content:"PDF, аудио, видео";font-size:11px}}

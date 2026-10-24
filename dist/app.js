@@ -39,6 +39,7 @@ function save(){try{stamp();localStorage.setItem(STORE_KEY,JSON.stringify(data))
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function folderName(id){return id==='inbox'?'Входящие':data.folders.find(f=>f.id===id)?.name||'Входящие'}
 function renderBase(){
+ document.body.dataset.view=data.folders.find(f=>f.id===view)?'folder':view;
  $('#folderNav').replaceChildren(...data.folders.filter(f=>!f.parent).map(f=>{const b=el('button','folder-nav'+(view===f.id?' active':''));const dot=el('span','folder-dot');dot.style.background=f.color;b.append(dot,el('span','',f.name));b.onclick=()=>navigate(f.id);dropTarget(b,f.id);return b}));
  $$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));$('#inboxCount').textContent=data.materials.filter(m=>m.folder==='inbox').length;
  const home=view==='home';if(home)$('#breadcrumb').textContent='Моё пространство';else $('#breadcrumb').replaceChildren(studyButton('Моё пространство',()=>navigate('home')),el('span','',' / '+folderName(view)));$('#heading').textContent=home?'Библиотека':folderName(view);{const f=data.folders.find(x=>x.id===view);let more=$('#headingMore');if(!more){more=el('button','more heading-more','⋯');more.id='headingMore';$('#heading').after(more);more.onclick=()=>openFolderActions(view)}more.hidden=!f;more.setAttribute('aria-label','Действия с коллекцией')}
@@ -208,3 +209,6 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ready)pul
 
 // Удаление материала вместе с его вложениями.
 function deleteMaterial(m){const n=m.attachments?.length||0;if(!confirm('Удалить «'+m.title+'»?'+(n?'\nВложения ('+n+') тоже удалятся.':'')+'\nЭто нельзя отменить.'))return;const old=data.materials;data.materials=old.filter(x=>x.id!==m.id);if(!save()){data.materials=old;return}if(db)for(const f of m.attachments||[])try{db.transaction('files','readwrite').objectStore('files').delete(f.id)}catch{}render();notify('Удалено: '+m.title)}
+
+// Мобильная навигация: центральная кнопка «＋» и быстрый путь к новой коллекции.
+$('#tabAdd').onclick=()=>$('#add').click();$('#folderAddM').onclick=()=>$('#folderAdd').click();
