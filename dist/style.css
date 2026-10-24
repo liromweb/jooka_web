@@ -12,3 +12,5 @@
 .more[hidden]{display:none}.collection-wrap>.collection{width:100%;display:block}
 
 #cardMenu .danger-item{color:#b3261e}
+
+img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{height:32px}}
