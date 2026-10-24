@@ -14,6 +14,19 @@ SNAP_EVERY = 600          # снимок перед записью не чаще
 KEEP_RECENT, KEEP_DAYS = 30, 30
 for d in (HIST, FILES): os.makedirs(d, exist_ok=True)
 ID = re.compile(r'^[A-Za-z0-9-]{8,64}$')
+REV = os.path.join(DATA, 'rev.txt')
+HOSTS = os.path.join(DATA, 'allowed_hosts.txt')   # по одному имени в строке, например: mac.tailnet-name.ts.net
+
+def get_rev():
+    try: return int(open(REV).read().strip() or 0)
+    except (OSError, ValueError): return 0
+
+def allowed_hosts():
+    base = {f'localhost:{PORT}', f'127.0.0.1:{PORT}'}
+    try: base |= {l.strip().lower() for l in open(HOSTS, encoding='utf-8') if l.strip() and not l.startswith('#')}
+    except OSError: pass
+    return base
+
 
 def atomic_write(path, raw):
     tmp = path + '.tmp'
@@ -48,6 +61,7 @@ def count_file(path):
     except OSError: return -1
 
 # История версий: data/ это отдельный git-репозиторий. Если задан remote origin, копия уходит и на GitHub (приватный репозиторий).
+WRITE_LOCK = threading.Lock()
 GIT_LOCK, git_timer = threading.Lock(), None
 def git(*args, timeout=90):
     return subprocess.run(['git', *args], cwd=DATA, capture_output=True, text=True, timeout=timeout)
@@ -74,9 +88,10 @@ def schedule_git_sync(delay=60):
 class H(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=os.path.join(ROOT, 'dist'), **k)
     def log_message(self, *a): pass
-    def ok_host(self): return self.headers.get('Host', '') in (f'localhost:{PORT}', f'127.0.0.1:{PORT}')
-    def send_bytes(self, body, ctype='application/json', code=200):
-        self.send_response(code); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+    def ok_host(self): return self.headers.get('Host', '').lower() in allowed_hosts()
+    def send_bytes(self, body, ctype='application/json', code=200, headers=None):
+        self.send_response(code); self.send_header('Content-Type', ctype)
+        for k, v in (headers or {}).items(): self.send_header(k, str(v)); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
 
     def do_GET(self):
         p = self.path
@@ -84,7 +99,7 @@ class H(SimpleHTTPRequestHandler):
             if not self.ok_host(): return self.send_error(403)
             if p == '/api/clips': return self.send_bytes(open(CLIPS, 'rb').read() if os.path.exists(CLIPS) else b'[]')
             if p == '/api/data':
-                return self.send_bytes(open(FILE, 'rb').read()) if os.path.exists(FILE) else self.send_error(404)
+                return self.send_bytes(open(FILE, 'rb').read(), headers={'X-Rev': get_rev(), 'Cache-Control': 'no-store'}) if os.path.exists(FILE) else self.send_error(404)
             if p == '/api/files': return self.send_bytes(json.dumps(os.listdir(FILES)).encode())
             if p.startswith('/api/file/') and ID.match(p[10:]):
                 fp = os.path.join(FILES, p[10:])
@@ -112,9 +127,14 @@ class H(SimpleHTTPRequestHandler):
         if old >= 10 and new < old * 0.5 and self.headers.get('X-Jooka-Confirm') != '1':
             atomic_write(os.path.join(HIST, 'rejected-' + datetime.datetime.now().strftime('%Y-%m-%d_%H%M%S') + '.json'), raw)
             return self.send_bytes(json.dumps({'old': old, 'new': new}).encode(), code=409)
-        snapshot_before_write()
-        atomic_write(FILE, raw); schedule_git_sync()
-        self.send_response(204); self.end_headers()
+        with WRITE_LOCK:
+            base = self.headers.get('X-Base-Rev')
+            if base is not None and base != str(get_rev()):          # другое устройство успело записать раньше
+                return self.send_bytes(open(FILE, 'rb').read(), code=412, headers={'X-Rev': get_rev()})
+            snapshot_before_write()
+            atomic_write(FILE, raw); schedule_git_sync()
+            rev = get_rev() + 1; atomic_write(REV, str(rev).encode())
+        self.send_response(204); self.send_header('X-Rev', str(rev)); self.end_headers()
 
     def save_clip(self, raw):
         try:

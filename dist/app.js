@@ -7,12 +7,35 @@ let unitSection='overview',essayId=null,readingWeek='',notesOnly=false,unreadOnl
 let view='home',tab='collections',editing=null,files=[],objects=[],db;const dialog=$('#composer');
 const dbReady=new Promise(resolve=>{try{const r=indexedDB.open('jooka-files',1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>{db=r.result;resolve()};r.onerror=()=>resolve()}catch{resolve()}});
 function notify(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('#toast').classList.remove('visible'),4000)}
-let backupReady=!!localStorage.getItem('jooka-prototype-v1'),pushTimer;function pushBackup(){if(!backupReady)return;clearTimeout(pushTimer);pushTimer=setTimeout(()=>sendBackup(),800)}
-function sendBackup(confirmed){const body=JSON.stringify(data);return fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json',...(confirmed?{'X-Jooka-Confirm':'1'}:{})},body}).then(r=>{if(r.status===409){r.json().then(j=>{if(confirm('Материалов стало намного меньше ('+j.old+' → '+j.new+'). Обновить резервную копию?\n«Отмена» оставит прежнюю копию на диске нетронутой.'))sendBackup(true)}).catch(()=>{});return}syncFiles()}).catch(()=>{})}
+// ── Синхронизация: сервер на Mac хранит единую копию, Mac и телефон подтягивают и сливают изменения ──
+const STORE_KEY='jooka-prototype-v1',hadLocal=!!localStorage.getItem(STORE_KEY);
+let serverRev=null,dirty=false,ready=false,pushing=false,pushTimer,saveSeq=0,snap=new Map();
+const LISTS=[['m','materials'],['f','folders'],['e','events'],['d','deadlines']];
+function takeSnap(){snap=new Map();for(const [k,name] of LISTS)for(const x of data[name]||[])snap.set(k+x.id,JSON.stringify({...x,updated:0}))}
+// Каждое изменение элемента получает метку времени, а удалённое попадает в «надгробия», чтобы не воскреснуть с другого устройства.
+function stamp(){const now=new Date().toISOString();data.deleted||={};const seen=new Set();for(const [k,name] of LISTS)for(const x of data[name]||[]){const key=k+x.id;seen.add(key);const j=JSON.stringify({...x,updated:0});if(snap.get(key)!==j){x.updated=now;snap.set(key,j)}}for(const key of [...snap.keys()])if(!seen.has(key)){data.deleted[key.slice(1)]=now;snap.delete(key)}}
+function mergeData(a,b){const out={...b,...a},del={...b.deleted,...a.deleted};for(const k in b.deleted||{})if(b.deleted[k]>(a.deleted?.[k]||''))del[k]=b.deleted[k];out.deleted=del;
+ const when=x=>x.updated||x.date||'',newer=(x,y)=>when(y)>when(x)?y:x;
+ const list=(la,lb)=>{const map=new Map();for(const x of lb||[])map.set(x.id,x);for(const x of la||[]){const y=map.get(x.id);map.set(x.id,y?newer(x,y):x)}return [...map.values()].filter(x=>!(del[x.id]&&del[x.id]>=when(x)))};
+ for(const [,name] of LISTS)out[name]=list(a[name],b[name]);
+ out.essays={};for(const id of new Set([...Object.keys(a.essays||{}),...Object.keys(b.essays||{})])){const x=a.essays?.[id],y=b.essays?.[id];out.essays[id]=x&&y?newer(x,y):x||y}
+ out.clipsApplied=[...new Set([...(a.clipsApplied||[]),...(b.clipsApplied||[])])];return out}
+function storeLocal(){try{localStorage.setItem(STORE_KEY,JSON.stringify(data))}catch{}}
+// 'ok' данные получены и слиты, 'none' на сервере ещё ничего нет, 'fail' сервер недоступен
+async function pull(first){try{const r=await fetch('/api/data',{cache:'no-store'});if(r.status===404)return 'none';if(!r.ok)return 'fail';const rev=r.headers.get('X-Rev');if(!first&&rev===serverRev)return 'ok';const remote=await r.json();if(!remote?.materials)return 'fail';serverRev=rev;const before=JSON.stringify(data);
+  if(first&&!hadLocal){data=remote;data.deleted||={};notify('Данные загружены с сервера')}else data=mergeData(data,remote);data.clipsApplied||=[];takeSnap();storeLocal();
+  if(JSON.stringify(data)!==JSON.stringify(remote))dirty=true;if(JSON.stringify(data)!==before)render();return 'ok'}catch{return 'fail'}}
+function pushBackup(){dirty=true;saveSeq++;if(!ready)return;clearTimeout(pushTimer);pushTimer=setTimeout(()=>push(),800)}
+async function push(confirmed){if(pushing||!ready)return;pushing=true;try{for(let i=0;i<3;i++){const seq=saveSeq;const r=await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json','X-Base-Rev':String(serverRev),...(confirmed?{'X-Jooka-Confirm':'1'}:{})},body:JSON.stringify(data)});
+   if(r.status===204){serverRev=r.headers.get('X-Rev');if(seq===saveSeq)dirty=false;syncFiles();break}
+   if(r.status===412){const remote=await r.json();serverRev=r.headers.get('X-Rev');data=mergeData(data,remote);takeSnap();storeLocal();render();continue}
+   if(r.status===409){const j=await r.json().catch(()=>({}));if(confirm('Материалов стало намного меньше ('+j.old+' → '+j.new+'). Обновить резервную копию?\n«Отмена» оставит прежнюю копию на диске нетронутой.')){pushing=false;return push(true)}break}
+   break}}catch{}finally{pushing=false}}
+takeSnap();
 // Вложения лежат в IndexedDB браузера; дублируем их на диск и возвращаем обратно, если в браузере их нет.
 let syncing=false;
 async function syncFiles(){if(syncing||!db)return;syncing=true;try{const have=new Set(await(await fetch('/api/files')).json());const idb=(mode,fn)=>new Promise(res=>{try{const r=fn(db.transaction('files',mode).objectStore('files'));r.onsuccess=()=>res(r.result);r.onerror=()=>res(undefined)}catch{res(undefined)}});for(const m of data.materials)for(const f of m.attachments||[]){if(f.pending||!f.id)continue;const blob=await idb('readonly',st=>st.get(f.id));if(blob&&!have.has(f.id)){await fetch('/api/file/'+f.id,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:blob});have.add(f.id)}else if(!blob&&have.has(f.id)){const r=await fetch('/api/file/'+f.id);if(r.ok){const b=new Blob([await r.arrayBuffer()],{type:f.type||''});await idb('readwrite',st=>st.put(b,f.id))}}}}catch{}finally{syncing=false}}
-function save(){try{localStorage.setItem('jooka-prototype-v1',JSON.stringify(data));pushBackup();return true}catch{notify('Не удалось сохранить: проверь свободное место в браузере.');return false}}
+function save(){try{stamp();localStorage.setItem(STORE_KEY,JSON.stringify(data));pushBackup();return true}catch{notify('Не удалось сохранить: проверь свободное место в браузере.');return false}}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
 function folderName(id){return id==='inbox'?'Входящие':data.folders.find(f=>f.id===id)?.name||'Входящие'}
 function renderBase(){
@@ -161,8 +184,10 @@ $('#exportNotes').onclick=()=>{
 // Подхватывает готовые материалы из inbox-notes.json один раз; удалённые заметки не возвращаются.
 fetch('inbox-notes.json').then(r=>r.ok?r.json():[]).then(list=>{let done;try{done=JSON.parse(localStorage.getItem('jooka-inbox-applied'))||[]}catch{done=[]}let added=0;for(const m of list){if(done.includes(m.id)||data.materials.some(x=>x.id===m.id))continue;const folder=data.folders.some(f=>f.id===m.folder)?m.folder:'inbox';data.materials.unshift({...m,folder});done.push(m.id);added++}if(added&&save()){try{localStorage.setItem('jooka-inbox-applied',JSON.stringify(done))}catch{}render();notify('Добавлено материалов: '+added)}}).catch(()=>{});
 
-// Если в браузере пусто (очистили кэш, другой браузер), возвращаем данные из файла на диске.
-if(!localStorage.getItem('jooka-prototype-v1'))fetch('/api/data').then(r=>r.ok?r.json():null).then(d=>{if(d?.materials){data=d;save();render();notify('Данные восстановлены из резервной копии')}}).catch(()=>{}).finally(()=>{backupReady=true;pushBackup();pullClips();dbReady.then(syncFiles)});
+// Первая загрузка с сервера, затем регулярные подтягивания.
+async function startSync(){const r=await pull(true);if(r==='fail')return;ready=true;if(dirty||r==='none')push();pullClips();dbReady.then(syncFiles)}
+async function tick(){if(!ready)return startSync();const r=await pull(false);if(r==='ok'&&dirty)push()}
+startSync();document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()});setInterval(tick,20000);
 
 // Переименование и удаление коллекций. Материалы при удалении переезжают во «Входящие».
 let actionFolder=null;
@@ -179,7 +204,7 @@ function clipText(c){return(c.text??/^«([\s\S]*)»\n\nИсточник/.exec(c.
 function foldClip(t,c){const flat=s=>s.replace(/\s+/g,' ').trim(),text=clipText(c),quote='«'+text+'»'+(c.page?' (с. '+c.page+')':'');if(text){const ft=flat(text);let handled=false;for(const m of t.body.matchAll(/«([\s\S]*?)»(?: \(с\. [^)]*\))?/g)){const fq=flat(m[1]);if(fq.includes(ft)){handled=true;break}if(ft.includes(fq)){t.body=t.body.replace(m[0],quote);handled=true;break}}if(!handled){const i=t.body.lastIndexOf('\n\nИсточник:');t.body=i<0?t.body+'\n\n'+quote:t.body.slice(0,i)+'\n\n'+quote+t.body.slice(i)}}if(c.date>t.date)t.date=c.date}
 function mergeClips(){let n=0;const first=new Map();for(const m of data.materials.filter(m=>m.clip&&m.source).sort((a,b)=>a.date.localeCompare(b.date))){const k=clipKey(m.source),t=first.get(k);if(!t){first.set(k,m);continue}foldClip(t,m);data.materials=data.materials.filter(x=>x!==m);n++}return n}
 function pullClips(){data.clipsApplied ||= [];return fetch('/api/clips').then(r=>r.ok?r.json():[]).then(list=>{let n=0;for(const c of list){if(data.clipsApplied.includes(c.id)||data.materials.some(m=>m.id===c.id))continue;data.clipsApplied.push(c.id);const t=c.source&&data.materials.find(m=>m.clip&&clipKey(m.source)===clipKey(c.source));if(t)foldClip(t,c);else data.materials.unshift(c);n++}const merged=mergeClips();if((n||merged)&&save()){render();notify(merged?'Заметки с одной страницы объединены':'Быстрых заметок добавлено: '+n)}}).catch(()=>{})}
-if(backupReady){pullClips();dbReady.then(syncFiles)}document.addEventListener('visibilitychange',()=>{if(!document.hidden)pullClips()});setInterval(pullClips,30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ready)pullClips()});setInterval(()=>{if(ready)pullClips()},30000);
 
 // Удаление материала вместе с его вложениями.
 function deleteMaterial(m){const n=m.attachments?.length||0;if(!confirm('Удалить «'+m.title+'»?'+(n?'\nВложения ('+n+') тоже удалятся.':'')+'\nЭто нельзя отменить.'))return;const old=data.materials;data.materials=old.filter(x=>x.id!==m.id);if(!save()){data.materials=old;return}if(db)for(const f of m.attachments||[])try{db.transaction('files','readwrite').objectStore('files').delete(f.id)}catch{}render();notify('Удалено: '+m.title)}
