@@ -90,8 +90,12 @@ class H(SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
     def ok_host(self): return self.headers.get('Host', '').lower() in allowed_hosts()
     def send_bytes(self, body, ctype='application/json', code=200, headers=None):
-        self.send_response(code); self.send_header('Content-Type', ctype)
-        for k, v in (headers or {}).items(): self.send_header(k, str(v)); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+        self.send_response(code)
+        self.send_header('Content-Type', ctype)
+        for k, v in (headers or {}).items(): self.send_header(k, str(v))
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_GET(self):
         p = self.path

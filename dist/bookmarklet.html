@@ -1,4 +1,33 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Быстрая заметка</title><link rel="stylesheet" href="style.css"><style>body{display:block;padding:60px 20px}main{max-width:520px;margin:auto;line-height:1.6;font-size:14px}a.btn{display:inline-block;background:#202022;color:#fff;border-radius:20px;padding:12px 20px;text-decoration:none;font-weight:500;margin:14px 0}li{margin:8px 0}</style></head><body><main><h1>Быстрая заметка</h1><p>Читаешь статью, выделяешь текст, нажимаешь закладку, и цитата со ссылкой попадает во «Входящие» жука отдельной заметкой.</p><ol><li>Покажи панель закладок (Chrome: Cmd+Shift+B, Safari: Вид, Показать панель избранного).</li><li>Перетащи эту кнопку на панель закладок:<br><a class="btn" id="bm">✂ В жука</a></li><li>На любой странице выдели текст и нажми закладку. Откроется маленькое окно «Сохранено» и само закроется.</li></ol><p><small>Работает, пока запущен сервер жука (python3 server.py). Если выделения нет, сохранится ссылка на страницу.</small></p></main><script>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Быстрая заметка</title><link rel="stylesheet" href="style.css">
+<style>body{display:block;padding:40px 20px 80px}main{max-width:560px;margin:auto;line-height:1.6;font-size:15px}h1{font-size:28px;margin:0 0 6px}h2{font-size:18px;margin:34px 0 6px}a.btn,button.btn{display:inline-block;background:#202022;color:#fff;border:0;border-radius:20px;padding:11px 18px;text-decoration:none;font-weight:500;font-size:14px;margin:8px 8px 8px 0}
+pre{background:#f1f1f4;border-radius:12px;padding:12px 14px;white-space:pre-wrap;word-break:break-all;font-size:12px;margin:8px 0}li{margin:9px 0}.note{color:#777780;font-size:13px}.ios,.mac{display:none}body.is-ios .ios{display:block}body.is-mac .mac{display:block}</style></head><body><main>
+<h1>Быстрая заметка</h1><p>Читаешь страницу, выделяешь текст, одно нажатие, и цитата со ссылкой попадает во «Входящие» жука. Цитаты с одной страницы собираются в одну заметку.</p>
+
+<section class="ios"><h2>iPhone: команда в меню «Поделиться»</h2>
+<p class="note">Делается один раз, примерно 3 минуты. Телефон должен быть подключён к Tailscale.</p>
+<ol>
+<li>Открой приложение <b>«Команды»</b> → <b>+</b> → назови команду «В жука».</li>
+<li>Нажми <b>(i)</b> внизу и включи <b>«Показывать в меню Поделиться»</b>. Тип входных данных оставь только <b>«Веб-страницы Safari»</b>.</li>
+<li>Добавь действие <b>«Выполнить JavaScript на веб-странице»</b> и вставь туда этот код:
+<pre id="js"></pre><button class="btn" data-copy="js">Скопировать код</button></li>
+<li>Добавь действие <b>«Получить содержимое URL»</b>. В поле URL вставь:
+<pre id="api"></pre><button class="btn" data-copy="api">Скопировать адрес</button></li>
+<li>Нажми <b>«Показать больше»</b> у этого действия: <b>Метод: POST</b>. Добавь заголовок <b>Content-Type</b> со значением <b>application/json</b>. <b>Тело запроса: Файл</b>, выбери переменную <b>«Результат JavaScript»</b>.</li>
+<li>Добавь действие <b>«Показать уведомление»</b> с текстом «Сохранено в жука». Готово.</li>
+</ol>
+<p><b>Как пользоваться:</b> в Safari выдели текст, нажми «Поделиться», выбери «В жука».</p>
+<p class="note">Я не могла проверить это на настоящем iPhone, поэтому если на каком-то шаге названия отличаются, напиши мне, и я подправлю инструкцию.</p>
+</section>
+
+<section class="mac"><h2>Mac: закладка в браузере</h2>
+<ol><li>Покажи панель закладок (Chrome: Cmd+Shift+B, Safari: Вид, Показать панель избранного).</li><li>Перетащи эту кнопку на панель закладок:<br><a class="btn" id="bm">✂ В жука</a></li><li>На любой странице выдели текст и нажми закладку.</li></ol></section>
+
+<p class="note">Работает, пока Mac включён и сервер жука запущен. Если выделения нет, сохранится ссылка на страницу.</p>
+</main><script>
+const ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua);document.body.classList.add(ios?'is-ios':'is-mac');
 const code="(()=>{var s=String(getSelection()).trim().slice(0,4000);window.open('"+location.origin+"/quick.html?u='+encodeURIComponent(location.href)+'&t='+encodeURIComponent(document.title)+'&s='+encodeURIComponent(s),'jooka','width=420,height=260')})()";
-bm.href='javascript:'+encodeURIComponent(code);
+document.getElementById('bm').href='javascript:'+encodeURIComponent(code);
+document.getElementById('js').textContent="completion(JSON.stringify({text:String(getSelection()).trim().slice(0,4000),url:location.href,title:document.title}));";
+document.getElementById('api').textContent=location.origin+'/api/clip';
+document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent);b.textContent='Скопировано ✓'}catch{b.textContent='Выдели и скопируй вручную'}});
 </script></body></html>

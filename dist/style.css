@@ -21,4 +21,4 @@ img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{hei
 .logo{gap:11px}
 @media(max-width:1050px) and (min-width:761px){img.bug{height:30px}.logo .wordmark{font-size:17px;letter-spacing:-.6px}.logo{gap:8px;padding-left:4px}}
 
-@media(max-width:760px){a.export-notes{display:none}input,textarea,select{font-size:16px}body{padding-bottom:env(safe-area-inset-bottom)}}
+@media(max-width:760px){a.export-notes[href="bookmarklet.html"]{display:inline-block;margin-bottom:4px}button.export-notes{display:none}input,textarea,select{font-size:16px}body{padding-bottom:env(safe-area-inset-bottom)}}
