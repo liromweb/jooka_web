@@ -15,6 +15,7 @@
 
 img.bug{height:40px;width:auto;display:block}@media(max-width:760px){img.bug{height:32px}}
 
-@font-face{font-family:'Unbounded';font-weight:900;font-style:normal;font-display:swap;src:url(assets/fonts/unbounded-900.woff2) format('woff2')}
-.logo .wordmark{font-family:'Unbounded',-apple-system,sans-serif;font-weight:900;font-size:25px;letter-spacing:-1px;display:inline-block;transform:skewX(-10deg);line-height:1}
-.logo{gap:12px}
+@font-face{font-family:'Unbounded';font-weight:200 900;font-style:normal;font-display:swap;src:url(assets/fonts/unbounded-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Unbounded';font-weight:200 900;font-style:normal;font-display:swap;src:url(assets/fonts/unbounded-cyrillic.woff2) format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+.logo .wordmark{font-family:'Unbounded',-apple-system,sans-serif;font-weight:600;font-size:21px;letter-spacing:-.8px;display:inline-block;transform:skewX(-10deg);line-height:1}
+.logo{gap:11px}
