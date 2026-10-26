@@ -139,7 +139,10 @@ class H(SimpleHTTPRequestHandler):
         p = self.path
         if p.startswith('/api/'):
             if not self.ok_host(): return self.send_error(403)
-            if p == '/api/clips': return self.send_bytes(open(CLIPS, 'rb').read() if os.path.exists(CLIPS) else b'[]')
+            if p.split('?')[0] == '/api/clips':
+                ver = int(re.search(r'[?&]v=(\d+)', p).group(1)) if re.search(r'[?&]v=(\d+)', p) else 0
+                clips = json.load(open(CLIPS, encoding='utf-8')) if os.path.exists(CLIPS) else []
+                return self.send_bytes(json.dumps([c for c in clips if int(c.get('minv') or 0) <= ver], ensure_ascii=False).encode())
             if p == '/api/data':
                 return self.send_bytes(open(FILE, 'rb').read(), headers={'X-Rev': get_rev(), 'Cache-Control': 'no-store'}) if os.path.exists(FILE) else self.send_error(404)
             if p == '/api/transcripts': return self.send_bytes(json.dumps(transcript_list()).encode(), headers={'Cache-Control': 'no-store'})
@@ -199,13 +202,13 @@ class H(SimpleHTTPRequestHandler):
 
     def save_clip(self, raw):
         try:
-            c = json.loads(raw); title = str(c.get('title') or '').strip()[:200]; url = str(c.get('url') or '')[:2000]; text = str(c.get('text') or '').strip()[:6000]
+            c = json.loads(raw); title = str(c.get('title') or '').strip()[:200]; url = str(c.get('url') or '')[:2000]; text = str(c.get('text') or '').strip()[:6000]; intro = str(c.get('intro') or '').strip()[:12000]; minv = int(c.get('minv') or 0)
         except (ValueError, AttributeError): return self.send_error(400)
         if not url.startswith(('http://', 'https://', 'file://')): url = ''
         page = str(c.get('page') or '').strip()[:20]
         label = unquote(url.rsplit('/', 1)[-1]) if url.startswith('file://') else url
         clips = json.load(open(CLIPS, encoding='utf-8')) if os.path.exists(CLIPS) else []
-        clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page,
+        clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page, 'intro': intro, 'minv': minv,
                       'body': ('«' + text + '»' + (' (с. ' + page + ')' if page else '') + '\n\n' if text else '') + ('Источник: ' + label + (', с. ' + page if page and not text else '') if url else ''), 'source': url, 'folder': str(c.get('folder') or 'inbox')[:80], 'section': (str(c.get('section'))[:20] if c.get('section') else None), 'kind': 'text',
                       'clip': True, 'demo': False, 'attachments': [], 'date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
         atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode()); schedule_git_sync()
