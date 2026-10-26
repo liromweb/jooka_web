@@ -211,6 +211,23 @@ class H(SimpleHTTPRequestHandler):
         atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode()); schedule_git_sync()
         self.send_response(204); self.end_headers()
 
+def pdf_watch_loop():
+    """Раз в ~20 секунд просит наблюдателя PDF дописать новые выделения в заметки."""
+    py, tool = os.path.join(ROOT, '.venv', 'bin', 'python'), os.path.join(ROOT, 'tools', 'pdf_watch.py')
+    env = dict(os.environ, JOOKA_URL=f'http://127.0.0.1:{PORT}', JOOKA_DATA=DATA)
+    if os.environ.get('JOOKA_PDF_ROOT'): env['JOOKA_PDF_ROOT'] = os.environ['JOOKA_PDF_ROOT']
+    while True:
+        time.sleep(20)
+        if not (os.path.exists(py) and os.path.exists(tool)): continue
+        try:
+            r = subprocess.run([py, tool, 'scan'], env=env, capture_output=True, text=True, timeout=900)
+            if r.stdout.strip() or r.returncode:
+                with open(os.path.join(DATA, 'pdf_watch.log'), 'a', encoding='utf-8') as f:
+                    f.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M ') + (r.stdout.strip() or '') + (('\nERR ' + r.stderr.strip()[-300:]) if r.returncode else '') + '\n')
+        except Exception as e:
+            print('pdf watch:', e, flush=True)
+
 if __name__ == '__main__':
+    threading.Thread(target=pdf_watch_loop, daemon=True).start()
     schedule_git_sync(5)
     ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()
