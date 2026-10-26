@@ -202,13 +202,13 @@ class H(SimpleHTTPRequestHandler):
 
     def save_clip(self, raw):
         try:
-            c = json.loads(raw); title = str(c.get('title') or '').strip()[:200]; url = str(c.get('url') or '')[:2000]; text = str(c.get('text') or '').strip()[:6000]; intro = str(c.get('intro') or '').strip()[:12000]; minv = int(c.get('minv') or 0)
+            c = json.loads(raw); title = str(c.get('title') or '').strip()[:200]; url = str(c.get('url') or '')[:2000]; text = str(c.get('text') or '').strip()[:6000]; intro = str(c.get('intro') or '').strip()[:12000]; minv = int(c.get('minv') or 0); remove = [str(x)[:6000] for x in (c.get('remove') or [])][:300]
         except (ValueError, AttributeError): return self.send_error(400)
         if not url.startswith(('http://', 'https://', 'file://')): url = ''
         page = str(c.get('page') or '').strip()[:20]
         label = unquote(url.rsplit('/', 1)[-1]) if url.startswith('file://') else url
         clips = json.load(open(CLIPS, encoding='utf-8')) if os.path.exists(CLIPS) else []
-        clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page, 'intro': intro, 'minv': minv,
+        clips.append({'id': 'clip-' + uuid.uuid4().hex[:12], 'title': title or url or 'Быстрая заметка', 'text': text, 'page': page, 'intro': intro, 'minv': minv, 'remove': remove,
                       'body': ('«' + text + '»' + (' (с. ' + page + ')' if page else '') + '\n\n' if text else '') + ('Источник: ' + label + (', с. ' + page if page and not text else '') if url else ''), 'source': url, 'folder': str(c.get('folder') or 'inbox')[:80], 'section': (str(c.get('section'))[:20] if c.get('section') else None), 'kind': 'text',
                       'clip': True, 'demo': False, 'attachments': [], 'date': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
         atomic_write(CLIPS, json.dumps(clips, ensure_ascii=False, indent=1).encode()); schedule_git_sync()

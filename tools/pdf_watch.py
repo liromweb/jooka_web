@@ -24,6 +24,7 @@ DATA = os.environ.get('JOOKA_DATA', os.path.join(HOME, 'jooka-web', 'data'))
 URL = os.environ.get('JOOKA_URL', 'http://localhost:4318')
 TESS = os.environ.get('TESSERACT', '/opt/homebrew/bin/tesseract')
 TESSDATA = os.path.join(HOME, 'jooka-web', 'models', 'tessdata')
+MIN_CONF = 65
 CONFIG, STATE = os.path.join(DATA, 'pdf_watch.json'), os.path.join(DATA, 'pdf_state.json')
 ROUTES = {'входящие': ('inbox', ''), 'мой ресерч': ('research', ''),
           'unit 6 - ридинги': ('unit-6', 'readings'), 'unit 6 - лекции': ('unit-6', 'lectures'),
@@ -48,13 +49,13 @@ def ocr(img, lang):
 
 def read_clip(pg, rect, scale=3):
     text = pg.get_text('text', clip=rect).strip().replace('\n', ' ')
-    if text: return text
+    if text: return text, 100
     f = tempfile.mktemp(suffix='.png')
     try:
         pg.get_pixmap(matrix=fitz.Matrix(scale, scale), clip=rect, colorspace=fitz.csGRAY).save(f)
         Image.open(f).point(lambda p: 255 if p > 150 else 0).save(f)        # убираем жёлтую заливку выделения
         best = max((ocr(f, lang) for lang in ('eng', 'rus')), key=lambda x: x[1])
-        return best[0]
+        return best[0], best[1]
     finally:
         try: os.remove(f)
         except OSError: pass
@@ -110,8 +111,11 @@ def annotation_text(pg, v):
     lines = []
     for i in range(0, len(v), 4):
         q = fitz.Quad(v[i:i + 4]).rect; r = fitz.Rect(q.x0 - 4, q.y0 - 3, q.x1 + 4, q.y1 + 3)
-        lines.append((round(q.y0), q.x0, read_clip(pg, r)))
-    return clean(' '.join(t for _, _, t in sorted(lines)))
+        t, c = read_clip(pg, r)
+        lines.append((round(q.y0), q.x0, t, c, max(1, len(t))))
+    lines.sort()
+    conf = sum(l[3] * l[4] for l in lines) / sum(l[4] for l in lines)
+    return clean(' '.join(l[2] for l in lines)), conf
 
 
 def post(payload):
@@ -156,7 +160,10 @@ def scan(only_adopt=None):
             if key in done: continue
             if only_adopt: done.add(key); continue
             pg = doc[pno]
-            text = annotation_text(pg, verts)
+            text, conf = annotation_text(pg, verts)
+            if text and conf < MIN_CONF:                                # скан читается плохо (фото под углом, рукопись, картинка)
+                print(f'~ {os.path.basename(path)} с. {pno + 1}: выделение пропущено, текст не читается надёжно (уверенность {round(conf)})', flush=True)
+                text = ''
             if text:
                 page = printed_page(pg, cache)
                 if page: entry['offset'] = page - (pno + 1)                 # запоминаем сдвиг «печатный номер минус номер в PDF»
